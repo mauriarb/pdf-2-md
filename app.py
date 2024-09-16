@@ -1,4 +1,3 @@
-# pylint: disable=import-error
 import streamlit as st
 import pdfplumber
 import re
@@ -16,25 +15,31 @@ def convert_pdf_to_markdown(pdf_file):
         for page in pdf.pages:
             # Extraer texto
             text = page.extract_text()
-            
-            # Procesar el texto para mantener el formato Markdown
-            text = re.sub(r'^# (.+)$', r'# \1', text, flags=re.MULTILINE)  # Encabezados
-            text = re.sub(r'\*\*(.+?)\*\*', r'**\1**', text)  # Negrita
-            text = re.sub(r'_(.+?)_', r'*\1*', text)  # Cursiva
-            
-            markdown_content += text + "\n\n"
+            if text:
+                # Procesar el texto para mantener el formato Markdown
+                text = re.sub(r'^# (.+)$', r'# \1', text, flags=re.MULTILINE)  # Encabezados
+                text = re.sub(r'\*\*(.+?)\*\*', r'**\1**', text)  # Negrita
+                text = re.sub(r'_(.+?)_', r'*\1*', text)  # Cursiva
+                
+                markdown_content += text + "\n\n"
             
             # Extraer imágenes
-            for image in page.images:
-                image_bytes = image['stream'].get_data()
-                image_filename = f'imagen_{image_counter}.png'
-                
-                # Añadir referencia de la imagen al Markdown
-                markdown_content += f'![Imagen {image_counter}](ANEXOS/{image_filename})\n\n'
-                
-                # Guardar imagen en memoria
-                image_files.append((image_filename, image_bytes))
-                image_counter += 1
+            try:
+                for image in page.images:
+                    try:
+                        image_bytes = image['stream'].get_data()
+                        image_filename = f'imagen_{image_counter}.png'
+                        
+                        # Añadir referencia de la imagen al Markdown
+                        markdown_content += f'![Imagen {image_counter}](ANEXOS/{image_filename})\n\n'
+                        
+                        # Guardar imagen en memoria
+                        image_files.append((image_filename, image_bytes))
+                        image_counter += 1
+                    except Exception as img_error:
+                        st.warning(f"No se pudo procesar una imagen: {str(img_error)}")
+            except Exception as page_error:
+                st.warning(f"No se pudieron procesar las imágenes de una página: {str(page_error)}")
 
     return markdown_content, image_files
 
@@ -61,7 +66,11 @@ if uploaded_file is not None:
                 
                 memory_file.seek(0)
                 
-                st.success('Conversión completada!')
+                if len(image_files) > 0:
+                    st.success('Conversión completada con éxito!')
+                else:
+                    st.warning('La conversión se completó, pero no se encontraron imágenes en el PDF.')
+                
                 st.markdown(create_download_link(memory_file.getvalue(), 'markdown_output.zip'), unsafe_allow_html=True)
                 
             except Exception as e:
